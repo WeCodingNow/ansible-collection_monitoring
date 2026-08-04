@@ -1,0 +1,18 @@
+namespace: alandreev
+name: monitoring
+version: 0.1.0
+readme: README.md
+authors:
+  - Alexey Andreev
+description: >-
+  Deploy a Prometheus + Grafana monitoring stack, plus node_exporter and
+  process-exporter, as native binaries managed by systemd.
+license:
+  - MIT
+tags:
+  - monitoring
+  - prometheus
+  - grafana
+  - systemd
+dependencies: {}
+repository: https://github.com/alandreev/ansible-monitoring

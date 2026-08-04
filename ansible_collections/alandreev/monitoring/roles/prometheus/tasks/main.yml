@@ -1,0 +1,93 @@
+---
+- name: install prometheus + promtool
+  ansible.builtin.import_role:
+    name: alandreev.monitoring.common
+    tasks_from: install_release.yml
+  vars:
+    common_release_name: prometheus
+    common_release_version: "{{ monitoring_prometheus_version }}"
+    common_release_url: "{{ prometheus_release_url }}"
+    common_release_checksum_url: "{{ prometheus_checksum_url }}"
+    common_release_cache: "{{ prometheus_release_cache }}"
+    common_release_archive_root: "{{ prometheus_archive_root }}"
+    common_release_binaries: [prometheus, promtool]
+  tags:
+    - download
+    - prometheus
+
+- name: create the prometheus system user
+  become: true
+  ansible.builtin.user:
+    name: prometheus
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/prometheus
+    create_home: false
+  tags:
+    - prometheus
+
+- name: create /etc/prometheus and /var/lib/prometheus
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0755"
+  loop:
+    - /etc/prometheus
+    - /var/lib/prometheus
+  tags:
+    - prometheus
+
+# A set_fact loop rather than a filter chain: each job's static_configs entry
+# is built from *that job's own* targets/labels, which a fixed-argument filter
+# chain (map/combine with constant args) can't express — only the "reject
+# targets/labels from everything else" half of the transform is uniform
+# across jobs.
+- name: build the scrape_configs list from monitoring_prometheus_jobs
+  ansible.builtin.set_fact:
+    prometheus_scrape_configs: "{{ (prometheus_scrape_configs | default([])) + [scrape_config_extra | combine({'static_configs': [scrape_config_static]})] }}"
+  vars:
+    scrape_config_extra: "{{ item | dict2items | rejectattr('key', 'in', ['targets', 'labels']) | list | items2dict }}"
+    scrape_config_static: "{{ {'targets': item.targets} | combine({'labels': item.labels} if 'labels' in item else {}) }}"
+  loop: "{{ monitoring_prometheus_jobs }}"
+  loop_control:
+    label: "{{ item.job_name }}"
+  tags:
+    - prometheus
+    - monitoring-config
+
+- name: render prometheus.yml
+  become: true
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: prometheus
+    group: prometheus
+    mode: "0644"
+    validate: /usr/local/bin/promtool check config %s
+  notify: reload prometheus
+  tags:
+    - prometheus
+    - monitoring-config
+
+- name: install the prometheus systemd unit
+  become: true
+  ansible.builtin.template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    mode: "0644"
+  notify: restart prometheus
+  tags:
+    - prometheus
+
+- name: ensure prometheus is running and enabled
+  become: true
+  ansible.builtin.systemd:
+    name: prometheus
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags:
+    - prometheus

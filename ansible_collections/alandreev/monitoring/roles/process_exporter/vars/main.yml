@@ -1,0 +1,13 @@
+---
+process_exporter_archive_root: "process-exporter-{{ monitoring_process_exporter_version }}.linux-amd64"
+process_exporter_release_url: "https://github.com/ncabatoff/process-exporter/releases/download/v{{ monitoring_process_exporter_version }}/process-exporter-{{ monitoring_process_exporter_version }}.linux-amd64.tar.gz"
+process_exporter_checksum_url: "https://github.com/ncabatoff/process-exporter/releases/download/v{{ monitoring_process_exporter_version }}/checksums.txt"
+process_exporter_release_cache: "{{ monitoring_cache_dir }}/process-exporter"
+
+process_exporter_args: >-
+  {{
+    ['-config.path', '/etc/process-exporter/config.yml',
+     '-web.listen-address', monitoring_process_exporter_listen_address]
+    + (['-threads'] if monitoring_process_exporter_threads else [])
+    + monitoring_process_exporter_extra_args
+  }}

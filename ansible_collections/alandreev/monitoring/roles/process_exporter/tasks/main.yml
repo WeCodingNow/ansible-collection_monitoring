@@ -1,0 +1,56 @@
+---
+- name: install process-exporter
+  ansible.builtin.import_role:
+    name: alandreev.monitoring.common
+    tasks_from: install_release.yml
+  vars:
+    common_release_name: process-exporter
+    common_release_version: "{{ monitoring_process_exporter_version }}"
+    common_release_url: "{{ process_exporter_release_url }}"
+    common_release_checksum_url: "{{ process_exporter_checksum_url }}"
+    common_release_cache: "{{ process_exporter_release_cache }}"
+    common_release_archive_root: "{{ process_exporter_archive_root }}"
+    common_release_binaries: [process-exporter]
+  tags:
+    - download
+    - process-exporter
+
+- name: create /etc/process-exporter
+  become: true
+  ansible.builtin.file:
+    path: /etc/process-exporter
+    state: directory
+    mode: "0755"
+  tags:
+    - process-exporter
+
+- name: render process-exporter's config
+  become: true
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: /etc/process-exporter/config.yml
+    mode: "0644"
+  notify: restart process-exporter
+  tags:
+    - process-exporter
+    - monitoring-config
+
+- name: install the process-exporter systemd unit
+  become: true
+  ansible.builtin.template:
+    src: process-exporter.service.j2
+    dest: /etc/systemd/system/process-exporter.service
+    mode: "0644"
+  notify: restart process-exporter
+  tags:
+    - process-exporter
+
+- name: ensure process-exporter is running and enabled
+  become: true
+  ansible.builtin.systemd:
+    name: process-exporter
+    state: started
+    enabled: true
+    daemon_reload: true
+  tags:
+    - process-exporter

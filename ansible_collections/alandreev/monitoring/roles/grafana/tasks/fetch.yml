@@ -1,0 +1,53 @@
+---
+# Control-node fetch: resolves monitoring_grafana_version to a concrete
+# release and caches its linux/amd64 tarball under grafana_release_cache.
+#
+# Unlike prometheus/node_exporter/process-exporter (roles/common/tasks/
+# install_release.yml), Grafana's download filename embeds a non-deterministic
+# build ID that isn't derivable from the version string alone, so the release
+# is resolved through grafana.com's own JSON index instead of a templated URL.
+
+- name: "grafana: control-node tarball fetch"
+  delegate_to: localhost
+  run_once: true
+  block:
+    - name: "grafana: ensure the control-node cache directory exists"
+      ansible.builtin.file:
+        path: "{{ grafana_release_cache }}"
+        state: directory
+        mode: "0755"
+
+    - name: "grafana: read grafana.com's release index for {{ monitoring_grafana_version }}"
+      ansible.builtin.uri:
+        url: "https://grafana.com/api/grafana/versions/{{ monitoring_grafana_version }}"
+        return_content: true
+      register: grafana_version_info
+
+    - name: "grafana: find the linux/amd64 package"
+      ansible.builtin.set_fact:
+        grafana_package_matches: >-
+          {{ grafana_version_info.json.packages
+             | selectattr('os', 'eq', 'linux') | selectattr('arch', 'eq', 'amd64')
+             | list }}
+
+    - name: "grafana: fail loudly if that release has no linux/amd64 package"
+      ansible.builtin.fail:
+        msg: >-
+          grafana.com's release index lists no linux/amd64 package for
+          {{ monitoring_grafana_version }}. Check monitoring_grafana_version
+          against https://grafana.com/grafana/download.
+      when: grafana_package_matches | length == 0
+
+    - name: "grafana: pin the package's URL and checksum"
+      ansible.builtin.set_fact:
+        grafana_package: "{{ grafana_package_matches[0] }}"
+
+    # The checksum comes from the same index entry as the URL, and get_url
+    # skips the download when the cached file already matches it — so this
+    # is both the integrity check and the re-run guard.
+    - name: "grafana: download {{ monitoring_grafana_version }} into the cache"
+      ansible.builtin.get_url:
+        url: "{{ grafana_package.url }}"
+        dest: "{{ grafana_release_cache }}/{{ grafana_package.url | basename }}"
+        checksum: "sha256:{{ grafana_package.sha256 }}"
+        mode: "0644"

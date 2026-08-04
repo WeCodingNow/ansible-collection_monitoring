@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  role_name: process_exporter
+  namespace: alandreev
+  author: Alexey Andreev
+  description: >-
+    Install ncabatoff/process-exporter from an upstream release tarball,
+    config rendered from an inventory-declared process_names list,
+    systemd-managed.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - all
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - process-exporter
+    - monitoring
+    - systemd
+
+dependencies: []

@@ -1,0 +1,34 @@
+---
+monitoring_prometheus_version: "3.13.2"
+
+monitoring_prometheus_listen_address: "0.0.0.0:9090"
+
+# Set when Prometheus sits behind a reverse proxy at a sub-path.
+monitoring_prometheus_external_url: ""
+
+monitoring_prometheus_retention_time: "15d"
+monitoring_prometheus_scrape_interval: "15s"
+monitoring_prometheus_evaluation_interval: "15s"
+
+# Merged into the rendered config's global: section, for anything besides the
+# two intervals above (e.g. external_labels).
+monitoring_prometheus_global: {}
+
+# Scrape jobs. Each entry is a Prometheus scrape_config with two keys handled
+# specially: targets (required) and labels (optional) become the job's one
+# static_configs entry; everything else is copied through verbatim. See the
+# collection README for the full shape and an example.
+monitoring_prometheus_jobs: []
+
+# Verbatim scrape_configs entries, appended after the ones built from
+# monitoring_prometheus_jobs — for jobs that need real service discovery
+# rather than a static target list.
+monitoring_prometheus_extra_scrape_configs: []
+
+# Extra flags appended to ExecStart, e.g. "--web.enable-lifecycle".
+monitoring_prometheus_extra_args: []
+
+# Where this role's control-node artifact cache lives. Anchored on the
+# inventory, so the cache sits with whatever else the stand being provisioned
+# supplies, and stays put no matter which playbook pulls the role in.
+monitoring_cache_dir: "{{ inventory_dir }}/dist"

@@ -1,0 +1,25 @@
+---
+# Two plays, each with its own overridable host pattern: an imported play's
+# `hosts:` cannot be overridden any other way, and `--limit` would clamp
+# every play in the run, not just the one that needs it.
+#
+# The split matters because exporters and server components usually live on
+# different hosts: node_exporter/process-exporter belong on every physical
+# node being monitored, while Prometheus/Grafana are one shared instance.
+# Pointing the exporter play at an inventory group of service-instance hosts
+# that all share one physical node would redo the same install once per
+# instance, so it's aimed at the physical-node group instead.
+
+- hosts: "{{ monitoring_exporter_hosts | default('all') }}"
+  collections:
+    - alandreev.monitoring
+  roles:
+    - node_exporter
+    - process_exporter
+
+- hosts: "{{ monitoring_server_hosts | default('monitoring') }}"
+  collections:
+    - alandreev.monitoring
+  roles:
+    - prometheus
+    - grafana

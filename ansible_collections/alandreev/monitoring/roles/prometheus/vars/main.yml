@@ -1,0 +1,30 @@
+---
+# Internal constants — not meant to be overridden by callers. The supported
+# knobs are in defaults/main.yml.
+
+prometheus_archive_root: "prometheus-{{ monitoring_prometheus_version }}.linux-amd64"
+prometheus_release_url: "https://github.com/prometheus/prometheus/releases/download/v{{ monitoring_prometheus_version }}/{{ prometheus_archive_root }}.tar.gz"
+prometheus_checksum_url: "https://github.com/prometheus/prometheus/releases/download/v{{ monitoring_prometheus_version }}/sha256sums.txt"
+prometheus_release_cache: "{{ monitoring_cache_dir }}/prometheus"
+
+# global: and scrape_configs: are the two top-level keys Prometheus' config
+# needs from this role. prometheus_scrape_configs is built by tasks/main.yml
+# (one entry per monitoring_prometheus_jobs item, via a set_fact loop — the
+# per-job transform needs the job's own targets/labels folded into a fresh
+# static_configs entry, which is more than a fixed-argument filter chain can
+# express) before this is ever rendered.
+prometheus_config:
+  global: "{{ {'scrape_interval': monitoring_prometheus_scrape_interval, 'evaluation_interval': monitoring_prometheus_evaluation_interval} | combine(monitoring_prometheus_global) }}"
+  scrape_configs: "{{ (prometheus_scrape_configs | default([])) + monitoring_prometheus_extra_scrape_configs }}"
+
+prometheus_args: >-
+  {{
+    [
+      '--config.file=/etc/prometheus/prometheus.yml',
+      '--storage.tsdb.path=/var/lib/prometheus',
+      '--storage.tsdb.retention.time=' ~ monitoring_prometheus_retention_time,
+      '--web.listen-address=' ~ monitoring_prometheus_listen_address,
+    ]
+    + (['--web.external-url=' ~ monitoring_prometheus_external_url] if monitoring_prometheus_external_url | length > 0 else [])
+    + monitoring_prometheus_extra_args
+  }}

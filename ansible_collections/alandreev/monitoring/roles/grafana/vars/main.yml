@@ -1,0 +1,22 @@
+---
+grafana_release_cache: "{{ monitoring_cache_dir }}/grafana"
+grafana_homepath: /usr/share/grafana
+
+grafana_ini_sections: >-
+  {{
+    {
+      'server': {'http_port': monitoring_grafana_listen_port},
+      'security': {'admin_password': monitoring_grafana_admin_password},
+      'auth.anonymous': {
+        'enabled': monitoring_grafana_anonymous_enabled,
+        'org_role': monitoring_grafana_anonymous_org_role
+      },
+      'auth.basic': {'enabled': monitoring_grafana_basic_auth_enabled},
+      'paths': {
+        'data': '/var/lib/grafana',
+        'logs': '/var/log/grafana',
+        'plugins': '/var/lib/grafana/plugins',
+        'provisioning': '/etc/grafana/provisioning'
+      }
+    } | combine(monitoring_grafana_ini, recursive=True)
+  }}

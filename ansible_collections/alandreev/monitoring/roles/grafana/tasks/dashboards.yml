@@ -1,0 +1,63 @@
+---
+# Copies each dashboard's dashboards/{src, folder} entry into
+# /var/lib/grafana/dashboards/<folder>/ and provisions one file-type provider
+# per folder. Grafana polls each already-configured folder for dashboard file
+# changes (updateIntervalSeconds below), but only reads providers.yaml itself
+# at startup — so a new folder needs a restart before it shows up in the UI,
+# even though an existing folder's dashboard files don't.
+
+- name: "grafana: fail loudly on duplicate dashboard folders"
+  vars:
+    grafana_dashboard_folders: "{{ monitoring_grafana_dashboards | map(attribute='folder') | list }}"
+  ansible.builtin.fail:
+    msg: >-
+      monitoring_grafana_dashboards has duplicate folder(s) — each folder gets
+      one provider, so entries sharing a folder must be merged into one src
+      instead: {{ grafana_dashboard_folders }}
+  when: (grafana_dashboard_folders | unique | length) != (grafana_dashboard_folders | length)
+
+- name: "grafana: stat each dashboard source on the control node"
+  delegate_to: localhost
+  run_once: true
+  ansible.builtin.stat:
+    path: "{{ item.src }}"
+  loop: "{{ monitoring_grafana_dashboards }}"
+  loop_control:
+    label: "{{ item.folder }}"
+  register: grafana_dashboard_src_stats
+
+- name: "grafana: create each dashboard folder's directory"
+  become: true
+  ansible.builtin.file:
+    path: "/var/lib/grafana/dashboards/{{ item.folder }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0750"
+  loop: "{{ monitoring_grafana_dashboards }}"
+  loop_control:
+    label: "{{ item.folder }}"
+
+# A trailing slash on a directory src copies its contents into dest/; without
+# one, copy would nest the directory itself one level deeper.
+- name: "grafana: copy dashboard sources into place"
+  become: true
+  ansible.builtin.copy:
+    src: "{{ item.item.src }}{{ '/' if item.stat.isdir else '' }}"
+    dest: "/var/lib/grafana/dashboards/{{ item.item.folder }}/"
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  loop: "{{ grafana_dashboard_src_stats.results }}"
+  loop_control:
+    label: "{{ item.item.folder }}"
+
+- name: "grafana: render the dashboard providers"
+  become: true
+  ansible.builtin.template:
+    src: dashboards-providers.yaml.j2
+    dest: /etc/grafana/provisioning/dashboards/providers.yaml
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  notify: restart grafana

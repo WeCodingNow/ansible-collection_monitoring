@@ -1,0 +1,15 @@
+---
+monitoring_node_exporter_version: "1.12.1"
+monitoring_node_exporter_listen_address: "0.0.0.0:9100"
+
+# Each becomes --collector.<name> / --no-collector.<name> on ExecStart.
+monitoring_node_exporter_collectors_enabled: []
+monitoring_node_exporter_collectors_disabled: []
+
+monitoring_node_exporter_extra_args: []
+
+# Where this role's control-node artifact cache lives. Anchored on the
+# inventory, so the cache sits with whatever else the stand being
+# provisioned supplies, and stays put no matter which playbook pulls the
+# role in.
+monitoring_cache_dir: "{{ inventory_dir }}/dist"

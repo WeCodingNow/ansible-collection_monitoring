@@ -1,0 +1,17 @@
+apiVersion: 1
+
+providers:
+{% for d in monitoring_grafana_dashboards %}
+  - name: {{ d.folder }}
+    orgId: 1
+    folder: {{ d.folder }}
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/{{ d.folder }}
+{% endfor %}
+{% if monitoring_grafana_dashboards | length == 0 %}
+  []
+{% endif %}

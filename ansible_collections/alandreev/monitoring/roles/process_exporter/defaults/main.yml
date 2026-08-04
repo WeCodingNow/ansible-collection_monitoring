@@ -1,0 +1,21 @@
+---
+monitoring_process_exporter_version: "0.8.7"
+monitoring_process_exporter_listen_address: "0.0.0.0:9256"
+monitoring_process_exporter_threads: true
+
+# process-exporter's own config file content, written out verbatim with
+# to_nice_yaml — whatever its config schema accepts, the inventory can say,
+# with no per-key role support. This default reproduces the stand's current
+# monitoring/process-exporter/config.yml.
+monitoring_process_exporter_config:
+  process_names:
+    - comm:
+        - k6
+
+monitoring_process_exporter_extra_args: []
+
+# Where this role's control-node artifact cache lives. Anchored on the
+# inventory, so the cache sits with whatever else the stand being
+# provisioned supplies, and stays put no matter which playbook pulls the
+# role in.
+monitoring_cache_dir: "{{ inventory_dir }}/dist"

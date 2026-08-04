@@ -1,0 +1,33 @@
+---
+monitoring_grafana_version: "13.1.1"
+
+monitoring_grafana_listen_port: 3000
+monitoring_grafana_admin_password: admin
+monitoring_grafana_anonymous_enabled: true
+monitoring_grafana_anonymous_org_role: Admin
+monitoring_grafana_basic_auth_enabled: false
+
+# Extra grafana.ini sections, merged over this role's own: {section: {key: value}}.
+monitoring_grafana_ini: {}
+
+# URL of the bundled default Prometheus datasource (used only when
+# monitoring_grafana_datasources is empty), and available for interpolation
+# in any file supplied via monitoring_grafana_datasources.
+monitoring_grafana_prometheus_url: "http://127.0.0.1:9090"
+
+# Control-node paths (directory or single file) to Grafana datasource
+# provisioning files, templated on the way over. Left empty, one bundled
+# Prometheus datasource at monitoring_grafana_prometheus_url is provisioned
+# instead, marked isDefault. See the collection README for the full shape.
+monitoring_grafana_datasources: []
+
+# [{src, folder}] — src is a control-node path (directory, copied
+# recursively, or a single .json file); folder is required and must be
+# unique across entries. See the collection README for the full shape.
+monitoring_grafana_dashboards: []
+
+# Where this role's control-node artifact cache lives. Anchored on the
+# inventory, so the cache sits with whatever else the stand being
+# provisioned supplies, and stays put no matter which playbook pulls the
+# role in.
+monitoring_cache_dir: "{{ inventory_dir }}/dist"

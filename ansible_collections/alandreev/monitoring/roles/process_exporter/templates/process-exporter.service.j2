@@ -1,0 +1,11 @@
+[Unit]
+Description=process-exporter
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/process-exporter {{ process_exporter_args | join(' ') }}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

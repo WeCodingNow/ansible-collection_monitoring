@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  role_name: node_exporter
+  namespace: alandreev
+  author: Alexey Andreev
+  description: >-
+    Install Prometheus node_exporter from an upstream release tarball,
+    systemd-managed.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - all
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - node-exporter
+    - prometheus
+    - monitoring
+    - systemd
+
+dependencies: []

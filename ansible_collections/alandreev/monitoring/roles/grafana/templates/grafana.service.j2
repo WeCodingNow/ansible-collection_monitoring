@@ -1,0 +1,14 @@
+[Unit]
+Description=Grafana
+After=network.target
+
+[Service]
+User=grafana
+Group=grafana
+Type=simple
+ExecStart={{ grafana_homepath }}/bin/grafana server --config /etc/grafana/grafana.ini --homepath {{ grafana_homepath }} --pidfile /run/grafana/grafana.pid
+Restart=on-failure
+RuntimeDirectory=grafana
+
+[Install]
+WantedBy=multi-user.target

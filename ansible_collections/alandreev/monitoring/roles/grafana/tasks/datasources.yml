@@ -1,0 +1,71 @@
+---
+# Renders each monitoring_grafana_datasources entry (a directory or a single
+# file) into /etc/grafana/provisioning/datasources/. Left empty, provisions
+# one bundled default Prometheus datasource instead. Unlike dashboards,
+# datasource provisioning does not poll — Grafana only picks up changes here
+# on restart — so every render below notifies restart grafana.
+
+- name: "grafana: provision the bundled default Prometheus datasource"
+  become: true
+  ansible.builtin.template:
+    src: default-datasource.yaml.j2
+    dest: /etc/grafana/provisioning/datasources/default.yaml
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  notify: restart grafana
+  when: monitoring_grafana_datasources | length == 0
+
+- name: "grafana: remove the bundled default datasource when one is supplied"
+  become: true
+  ansible.builtin.file:
+    path: /etc/grafana/provisioning/datasources/default.yaml
+    state: absent
+  notify: restart grafana
+  when: monitoring_grafana_datasources | length > 0
+
+- name: "grafana: stat each datasource source on the control node"
+  delegate_to: localhost
+  run_once: true
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ monitoring_grafana_datasources }}"
+  register: grafana_datasource_src_stats
+
+# Restricted to yaml/yml: Grafana's datasource provisioner only reads that
+# format, and a datasources directory may otherwise also hold unrelated
+# exports (e.g. a raw datasource JSON dumped from Grafana's own API, which
+# isn't in the {apiVersion, datasources: [...]} shape provisioning expects).
+- name: "grafana: list files under any datasource directory sources"
+  delegate_to: localhost
+  run_once: true
+  ansible.builtin.find:
+    paths: "{{ item.item }}"
+    file_type: file
+    patterns: ['*.yaml', '*.yml']
+  loop: "{{ grafana_datasource_src_stats.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.isdir
+  register: grafana_datasource_dir_listings
+
+- name: "grafana: build the flat list of datasource files to render"
+  ansible.builtin.set_fact:
+    grafana_datasource_files: >-
+      {{
+        (grafana_datasource_src_stats.results | rejectattr('stat.isdir') | map(attribute='item') | list)
+        + (grafana_datasource_dir_listings.results | selectattr('files', 'defined') | map(attribute='files') | flatten | map(attribute='path') | list)
+      }}
+
+- name: "grafana: render datasource provisioning files"
+  become: true
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/grafana/provisioning/datasources/{{ item | basename }}"
+    owner: grafana
+    group: grafana
+    mode: "0640"
+  loop: "{{ grafana_datasource_files }}"
+  loop_control:
+    label: "{{ item | basename }}"
+  notify: restart grafana

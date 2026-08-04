@@ -1,0 +1,46 @@
+---
+# Unpacks the cached tarball into {{ grafana_homepath }} on the managed node.
+# grafana_package is set in fetch.yml's control-node block (delegate_to:
+# localhost, run_once: true) — run_once applies both the task's results and
+# any facts it sets to every host in the batch, so it's available here
+# unchanged even though this file runs per-host with no delegation.
+
+- name: "grafana: read the installed version, if any"
+  ansible.builtin.command: "{{ grafana_homepath }}/bin/grafana --version"
+  register: grafana_installed
+  changed_when: false
+  failed_when: false
+
+- name: "grafana: install {{ monitoring_grafana_version }}"
+  when: monitoring_grafana_version not in (grafana_installed.stdout + grafana_installed.stderr)
+  become: true
+  block:
+    - name: "grafana: ensure the staging directory exists"
+      ansible.builtin.file:
+        path: /opt/monitoring-dist
+        state: directory
+        mode: "0755"
+
+    - name: "grafana: transfer the cached tarball to the managed node"
+      ansible.posix.synchronize:
+        src: "{{ grafana_release_cache }}/{{ grafana_package.url | basename }}"
+        dest: "/opt/monitoring-dist/{{ grafana_package.url | basename }}"
+
+    - name: "grafana: unpack the tarball"
+      ansible.builtin.unarchive:
+        src: "/opt/monitoring-dist/{{ grafana_package.url | basename }}"
+        dest: /opt/monitoring-dist
+        remote_src: true
+
+    - name: "grafana: remove any install already at {{ grafana_homepath }}"
+      ansible.builtin.file:
+        path: "{{ grafana_homepath }}"
+        state: absent
+
+    # The tarball's own top-level directory is version-suffixed
+    # (grafana-{{ monitoring_grafana_version }}), unlike prometheus/
+    # node_exporter's fixed archive roots, so it's moved into place rather
+    # than installed via the common role's per-binary copy.
+    - name: "grafana: move the unpacked tree into {{ grafana_homepath }}"
+      ansible.builtin.command:
+        cmd: "mv /opt/monitoring-dist/grafana-{{ monitoring_grafana_version }} {{ grafana_homepath }}"

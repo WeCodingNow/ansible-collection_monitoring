@@ -1,0 +1,6 @@
+---
+- name: restart process-exporter
+  become: true
+  ansible.builtin.systemd:
+    name: process-exporter
+    state: restarted

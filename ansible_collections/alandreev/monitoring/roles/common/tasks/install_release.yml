@@ -1,0 +1,98 @@
+---
+# Shared release-install sequence for prometheus, node_exporter and
+# process-exporter: all three ship a GitHub release tarball
+# <name>-<version>.linux-amd64.tar.gz containing one top-level directory,
+# alongside a checksums file in `<sha256>  <filename>` format. Grafana does not
+# use this — it comes from dl.grafana.com, has a differently-shaped checksum
+# sidecar, and installs a whole application directory rather than a couple of
+# binaries; it caches on the control node the same way, in its own
+# tasks/fetch.yml.
+#
+# Included via:
+#   ansible.builtin.import_role:
+#     name: alandreev.monitoring.common
+#     tasks_from: install_release.yml
+#   vars:
+#     common_release_name: node_exporter                  # label used in task names
+#     common_release_version: "{{ monitoring_node_exporter_version }}"
+#     common_release_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ monitoring_node_exporter_version }}/node_exporter-{{ monitoring_node_exporter_version }}.linux-amd64.tar.gz"
+#     common_release_checksum_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ monitoring_node_exporter_version }}/sha256sums.txt"
+#     common_release_cache: "{{ monitoring_cache_dir }}/node_exporter"
+#     common_release_archive_root: "node_exporter-{{ monitoring_node_exporter_version }}.linux-amd64"
+#     common_release_binaries: [node_exporter]
+#
+# The version guard checks common_release_binaries[0], already installed at
+# /usr/local/bin — so list the binary whose --version output actually prints
+# common_release_version first (matters for prometheus, whose second binary is
+# promtool).
+
+- name: "{{ common_release_name }}: control-node tarball fetch"
+  delegate_to: localhost
+  run_once: true
+  block:
+    - name: "{{ common_release_name }}: ensure the control-node cache directory exists"
+      ansible.builtin.file:
+        path: "{{ common_release_cache }}"
+        state: directory
+        mode: "0755"
+
+    - name: "{{ common_release_name }}: read the release's checksums file"
+      ansible.builtin.uri:
+        url: "{{ common_release_checksum_url }}"
+        return_content: true
+      register: common_release_checksums
+
+    - name: "{{ common_release_name }}: find this release's checksum for {{ common_release_url | basename }}"
+      ansible.builtin.set_fact:
+        common_release_checksum: >-
+          {{ (common_release_checksums.content.splitlines()
+              | select('search', '\s' ~ (common_release_url | basename | regex_escape) ~ '$')
+              | list | first).split()[0] }}
+
+    # checksum is both the integrity check and the re-run no-op: get_url skips
+    # the download outright when the cached file already matches it.
+    - name: "{{ common_release_name }}: download {{ common_release_version }} into the cache"
+      ansible.builtin.get_url:
+        url: "{{ common_release_url }}"
+        dest: "{{ common_release_cache }}/{{ common_release_url | basename }}"
+        checksum: "sha256:{{ common_release_checksum }}"
+        mode: "0644"
+
+- name: "{{ common_release_name }}: read the installed version, if any"
+  ansible.builtin.command: "/usr/local/bin/{{ common_release_binaries[0] }} --version"
+  register: common_release_installed
+  changed_when: false
+  failed_when: false
+
+# A missing binary leaves stdout/stderr with an exec-failure message rather
+# than raising — same behaviour the equivalent check in alandreev.dev's go
+# role relies on — so this membership test alone is enough to catch "not
+# installed yet" and "installed at some other version" together.
+- name: "{{ common_release_name }}: install {{ common_release_version }}"
+  when: common_release_version not in (common_release_installed.stdout + common_release_installed.stderr)
+  become: true
+  block:
+    - name: "{{ common_release_name }}: ensure the staging directory exists"
+      ansible.builtin.file:
+        path: /opt/monitoring-dist
+        state: directory
+        mode: "0755"
+
+    - name: "{{ common_release_name }}: transfer the cached tarball to the managed node"
+      ansible.posix.synchronize:
+        src: "{{ common_release_cache }}/{{ common_release_url | basename }}"
+        dest: "/opt/monitoring-dist/{{ common_release_url | basename }}"
+
+    - name: "{{ common_release_name }}: unpack the tarball"
+      ansible.builtin.unarchive:
+        src: "/opt/monitoring-dist/{{ common_release_url | basename }}"
+        dest: /opt/monitoring-dist
+        remote_src: true
+
+    - name: "{{ common_release_name }}: install the binaries"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "/opt/monitoring-dist/{{ common_release_archive_root }}/{{ item }}"
+        dest: "/usr/local/bin/{{ item }}"
+        mode: "0755"
+      loop: "{{ common_release_binaries }}"
